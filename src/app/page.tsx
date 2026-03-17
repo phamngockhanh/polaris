@@ -1,10 +1,28 @@
+"use client";
+
+import { useMutation, useQuery } from "convex/react";
+
+import { api } from "../../convex/_generated/api";
+
 import { Button } from "@/components/ui/button";
 
-const X = () =>{
+const X = () => {
+  const projects = useQuery(api.projects.get);
+  const createProject = useMutation(api.projects.create);
   return (
-      <Button variant ="purple">
-      Click me!!
+    <div className="flex flex-col gap-2 p-4">
+      <Button className="bg-red-200 " onClick={() => createProject({
+        name: "New project"
+      })}>
+        Add New
       </Button>
+      {projects?.map((project) => (
+        <div className="border rounded p-2 flex flex-col text-white" key={project._id}>
+          <p>{project.name}</p>
+          <p>Owner Id : {`${project.ownerId}`}</p>
+        </div>
+      ))}
+    </div>
   );
 };
 export default X;
