@@ -11,7 +11,9 @@ function normalizePrompt(value: unknown) {
 }
 
 function extractUrls(text: string) {
-  return (text.match(URL_REGEX) ?? []).map((url) => url.replace(/[),.!?]+$/g, ""));
+  return (text.match(URL_REGEX) ?? []).map((url) =>
+    url.replace(/[),.!?]+$/g, ""),
+  );
 }
 
 function isYouTubeUrl(url: string) {
@@ -61,7 +63,9 @@ export const demoGenerate = inngest.createFunction(
   { id: "demo-generate" },
   { event: "demo/generate" },
   async ({ event, step }) => {
-    const prompt = normalizePrompt((event.data as { prompt?: unknown } | undefined)?.prompt);
+    const prompt = normalizePrompt(
+      (event.data as { prompt?: unknown } | undefined)?.prompt,
+    );
     if (!prompt) {
       throw new Error("Missing prompt in event data.");
     }
@@ -95,6 +99,11 @@ export const demoGenerate = inngest.createFunction(
         const result = await generateText({
           model: getTextModel(),
           prompt: finalPrompt,
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
         });
 
         return {
@@ -115,6 +124,16 @@ export const demoGenerate = inngest.createFunction(
           error: parsedError,
         };
       }
+    });
+  },
+);
+
+export const demoError = inngest.createFunction(
+  { id: "demo-error" },
+  { event: "demo/error" },
+  async ({ step }) => {
+    await step.run("fail", async () => {
+      throw new Error("Inngest error: Background job failed!");
     });
   },
 );

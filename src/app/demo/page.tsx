@@ -1,11 +1,13 @@
 // localhost:3000/api/demo/blocking
 
 "use client";
-
+import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 export default function DemoPage() {
+  const { userId } = useAuth();
   const [prompt, setPrompt] = useState(
     "Summarize https://nextjs.org/docs and tell me the 3 most important points.",
   );
@@ -24,6 +26,22 @@ export default function DemoPage() {
     setResult(data.text ?? data.error ?? "No response");
     setLoading(false);
   };
+
+  const handleClientError = () => {
+    Sentry.logger.info("User attemping to click on client function", {
+      userId,
+    });
+    throw new Error("Client error: Something went wrong in the browser!");
+  };
+
+  const handleApiError = async () => {
+    await fetch("api/demo/error", { method: "POST" });
+  };
+
+  const handleInngestError = async () => {
+    await fetch("/api/demo/inngest-error", { method: "POST" });
+  };
+
   const handleBackground = async () => {
     setLoading2(true);
     const response = await fetch("/api/demo/background", {
@@ -51,6 +69,15 @@ export default function DemoPage() {
         </Button>
         <Button disabled={loading2} onClick={handleBackground}>
           {loading2 ? "Loading...." : "Background"}
+        </Button>
+        <Button variant="destructive" onClick={handleClientError}>
+          Client Error
+        </Button>
+        <Button variant="destructive" onClick={handleApiError}>
+          API Error
+        </Button>
+        <Button variant="destructive" onClick={handleInngestError}>
+          Inngest Error
         </Button>
       </div>
       <pre className="whitespace-pre-wrap rounded-md border p-3">{result}</pre>
