@@ -17,6 +17,11 @@ export async function POST(request: Request) {
     const response = await generateText({
       model: getTextModel(),
       prompt,
+      experimental_telemetry : {
+        isEnabled: true,
+        recordInputs: true,
+        recordOutputs:true,
+      }
     });
 
     return Response.json({ ok: true, text: response.text, prompt });
