@@ -30,7 +30,9 @@ export const ProjectIdLayout = ({
             maxSize={MAX_SIDEBAR_WIDTH}
             preferredSize={DEFAULT_CONVERSATION_SIDEBAR_WIDTH}
           >
-            <div>Conversation Sidebar</div>
+            <div className="h-full bg-sidebar text-sidebar-foreground">
+              Conversation Sidebar
+            </div>
           </Allotment.Pane>
           <Allotment.Pane>{children}</Allotment.Pane>
         </Allotment>
