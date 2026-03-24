@@ -52,7 +52,7 @@ export const RenameInput = ({
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="flex-1 bg-transparent text-sm outline-none focus:ring-1 focus:ring-inset focus:ring-ring"
+        className="flex-1 bg-transparent text-sm text-sidebar-foreground caret-sidebar-foreground outline-none focus:ring-1 focus:ring-inset focus:ring-ring"
         onBlur={handleSubmit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
