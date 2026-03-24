@@ -20,7 +20,7 @@ import { CreateInput } from "./create-input";
 import { LoadingRow } from "./loading-row";
 import { Tree } from "./tree";
 export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [collapseKey, setCollapseKey] = useState(0);
   const [creating, setCreating] = useState<"file" | "folder" | null>(null);
   const createFile = useCreateFile();
@@ -54,7 +54,7 @@ export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
       <ScrollArea>
         <div
           role="button"
-          onClick={() => {}}
+          onClick={() => setIsOpen((current) => !current)}
           className="group/project relative flex h-5.5 w-full cursor-pointer items-center gap-0.5 bg-accent text-left font-bold"
         >
           <ChevronRightIcon
