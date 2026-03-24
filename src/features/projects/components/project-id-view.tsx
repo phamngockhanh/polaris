@@ -6,6 +6,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { FaGithub } from "react-icons/fa";
 import { Allotment } from "allotment";
 import { FileExplorer } from "./file-explorer";
+import { EditorView } from "@/features/editor/components/editor-view";
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 800;
@@ -75,7 +76,7 @@ export const ProjectIdView = ({ projectId }: { projectId: Id<"projects"> }) => {
             </Allotment.Pane>
             <Allotment.Pane>
               <div className="h-full bg-sidebar text-sidebar-foreground">
-                <p>Editor View</p>
+                <EditorView projectId={projectId} />
               </div>
             </Allotment.Pane>
           </Allotment>
@@ -86,7 +87,9 @@ export const ProjectIdView = ({ projectId }: { projectId: Id<"projects"> }) => {
             activeView === "preview" ? "visible" : "invisible",
           )}
         >
-          <div className="h-full bg-sidebar text-sidebar-foreground">Preview</div>
+          <div className="h-full bg-sidebar text-sidebar-foreground">
+            Preview
+          </div>
         </div>
       </div>
     </div>

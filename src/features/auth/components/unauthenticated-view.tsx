@@ -13,15 +13,17 @@ import { Button } from "@/components/ui/button";
 
 export const UnauthenticatedView = () => {
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex h-screen items-center justify-center bg-sidebar text-sidebar-foreground">
       <div className="w-full max-w-lg bg-unmuted">
-        <Item variant="outline">
-          <ItemMedia variant="icon">
+        <Item variant="outline" className="text-sidebar-foreground">
+          <ItemMedia variant="icon" className="text-sidebar-foreground">
             <ShieldAlertIcon />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>Unauthorized Access</ItemTitle >
-            <ItemDescription>
+            <ItemTitle className="text-sidebar-foreground">
+              Unauthorized Access
+            </ItemTitle>
+            <ItemDescription className="text-sidebar-foreground/80">
               You are not authorized to access this resource.
             </ItemDescription>
           </ItemContent>

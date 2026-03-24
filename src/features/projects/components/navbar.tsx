@@ -87,7 +87,7 @@ export const Navbar = ({ projectId }: { projectId: Id<"projects"> }) => {
                   onFocus={(e) => e.currentTarget.select()}
                   onBlur={handleSubmit}
                   onKeyDown={handleKeyDown}
-                  className="text-sm bg-transparent text-foreground
+                  className="text-sm bg-transparent text-sidebar-foreground caret-sidebar-foreground
                   outline-none focus:ring-1 focus:ring-inset
                   focus:ring-ring font-medium max-w-40 truncate"
                 />
