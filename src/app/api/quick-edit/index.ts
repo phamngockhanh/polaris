@@ -1,12 +1,7 @@
-import {
-  EditorState,
-  StateEffect,
-  StateField,
-  type Extension,
-} from "@codemirror/state";
-import { EditorView, Tooltip, keymap, showTooltip } from "@codemirror/view";
+import { Tooltip, showTooltip, keymap, EditorView } from "@codemirror/view";
+import { StateField, EditorState, StateEffect } from "@codemirror/state";
 
-import { fetcher } from "@/app/api/quick-edit/fetcher";
+import { fetcher } from "./fetcher";
 
 export const showQuickEditEffect = StateEffect.define<boolean>();
 
@@ -24,14 +19,12 @@ export const quickEditState = StateField.define<boolean>({
         return effect.value;
       }
     }
-
     if (transaction.selection) {
       const selection = transaction.state.selection.main;
       if (selection.empty) {
         return false;
       }
     }
-
     return value;
   },
 });
@@ -54,10 +47,6 @@ const createQuickEditTooltip = (state: EditorState): readonly Tooltip[] => {
       above: false,
       strictSide: false,
       create() {
-        const selectionFrom = selection.from;
-        const selectionTo = selection.to;
-        const selectedCode = state.doc.sliceString(selectionFrom, selectionTo);
-
         const dom = document.createElement("div");
         dom.className =
           "bg-popover text-popover-foreground z-50 rounded-sm border border-input p-2 shadow-md flex flex-col gap-2 text-sm";
@@ -85,7 +74,6 @@ const createQuickEditTooltip = (state: EditorState): readonly Tooltip[] => {
             currentAbortController.abort();
             currentAbortController = null;
           }
-
           if (editorView) {
             editorView.dispatch({
               effects: showQuickEditEffect.of(false),
@@ -99,17 +87,19 @@ const createQuickEditTooltip = (state: EditorState): readonly Tooltip[] => {
         submitButton.className =
           "font-sans p-1 px-2 text-muted-foreground hover:text-foreground hover:bg-foreground/10 rounded-sm";
 
-        form.onsubmit = async (event) => {
-          event.preventDefault();
+        form.onsubmit = async (e) => {
+          e.preventDefault();
 
-          if (!editorView) {
-            return;
-          }
+          if (!editorView) return;
 
           const instruction = input.value.trim();
-          if (!instruction) {
-            return;
-          }
+          if (!instruction) return;
+
+          const selection = editorView.state.selection.main;
+          const selectedCode = editorView.state.doc.sliceString(
+            selection.from,
+            selection.to,
+          );
           const fullCode = editorView.state.doc.toString();
 
           submitButton.disabled = true;
@@ -128,11 +118,11 @@ const createQuickEditTooltip = (state: EditorState): readonly Tooltip[] => {
           if (editedCode) {
             editorView.dispatch({
               changes: {
-                from: selectionFrom,
-                to: selectionTo,
+                from: selection.from,
+                to: selection.to,
                 insert: editedCode,
               },
-              selection: { anchor: selectionFrom + editedCode.length },
+              selection: { anchor: selection.from + editedCode.length },
               effects: showQuickEditEffect.of(false),
             });
           } else {
@@ -170,16 +160,13 @@ const quickEditTooltipField = StateField.define<readonly Tooltip[]>({
     if (transaction.docChanged || transaction.selection) {
       return createQuickEditTooltip(transaction.state);
     }
-
     for (const effect of transaction.effects) {
       if (effect.is(showQuickEditEffect)) {
         return createQuickEditTooltip(transaction.state);
       }
     }
-
     return tooltips;
   },
-
   provide: (field) =>
     showTooltip.computeN([field], (state) => state.field(field)),
 });
@@ -205,13 +192,9 @@ const captureViewExtension = EditorView.updateListener.of((update) => {
   editorView = update.view;
 });
 
-export const quickEdit = (fileName: string): Extension => {
-  void fileName;
-
-  return [
-    quickEditState,
-    quickEditTooltipField,
-    quickEditKeymap,
-    captureViewExtension,
-  ];
-};
+export const quickEdit = (fileName: string) => [
+  quickEditState,
+  quickEditTooltipField,
+  quickEditKeymap,
+  captureViewExtension,
+];

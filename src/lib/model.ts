@@ -15,6 +15,7 @@ export type ModelErrorInfo = {
     | "PROVIDER_QUOTA_EXCEEDED"
     | "AUTHENTICATION_FAILED"
     | "MODEL_UNAVAILABLE"
+    | "PROVIDER_INVALID_RESPONSE"
     | "MODEL_REQUEST_FAILED";
   status: number;
   reason: string;
@@ -101,6 +102,23 @@ export function parseModelError(error: unknown): ModelErrorInfo {
       status: 400,
       reason: "The configured model name is unavailable for this provider.",
       message: `The model '${DEFAULT_MODEL}' is unavailable. Check OPENROUTER_MODEL and provider access.`,
+      rawMessage,
+    };
+  }
+
+  if (
+    normalizedMessage.includes("invalid json response") ||
+    normalizedMessage.includes("unexpected token") ||
+    normalizedMessage.includes("bad gateway") ||
+    normalizedMessage.includes("gateway")
+  ) {
+    return {
+      code: "PROVIDER_INVALID_RESPONSE",
+      status: 502,
+      reason:
+        "The provider returned an invalid or gateway-level response for this model request.",
+      message:
+        "The model provider returned an invalid response. This is often caused by an overloaded free model, a provider gateway issue, or an oversized prompt.",
       rawMessage,
     };
   }
