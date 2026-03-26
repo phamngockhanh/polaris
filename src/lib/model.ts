@@ -1,11 +1,13 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { openai as createAgentKitOpenAI } from "@inngest/agent-kit";
 
 export const DEFAULT_MODEL =
   process.env.OPENROUTER_MODEL ?? "openrouter/free";
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
-  baseURL: "https://openrouter.ai/api/v1",
+  baseURL: OPENROUTER_BASE_URL,
 });
 
 export type ModelErrorInfo = {
@@ -25,6 +27,21 @@ export type ModelErrorInfo = {
 
 export function getTextModel() {
   return openrouter(DEFAULT_MODEL);
+}
+
+export function getAgentTextModel(
+  model = DEFAULT_MODEL,
+  defaultParameters?: {
+    temperature?: number;
+    max_completion_tokens?: number;
+  },
+) {
+  return createAgentKitOpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY ?? "",
+    baseUrl: OPENROUTER_BASE_URL,
+    model,
+    defaultParameters,
+  });
 }
 
 function getRawMessage(error: unknown) {
