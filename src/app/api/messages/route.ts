@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { convex } from "@/lib/convex-client";
-import { processConversationMessage } from "@/features/conversations/inngest/process-message";
-
+import { inngest } from "@/inngest/client";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
   if (!internalKey) {
     return NextResponse.json(
       { error: "Internal key not configured" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
   if (!conversation) {
     return NextResponse.json(
       { error: "Conversation not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -53,7 +52,7 @@ export async function POST(request: Request) {
     {
       internalKey,
       projectId,
-    }
+    },
   );
 
   if (processingMessages.length > 0) {
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
           messageId: msg._id,
           status: "cancelled",
         });
-      })
+      }),
     );
   }
 
@@ -78,34 +77,41 @@ export async function POST(request: Request) {
   });
 
   // Create assistant message placeholder with processing status
-  const assistantMessageId = await convex.mutation(
-    api.system.createMessage,
-    {
-      internalKey,
-      conversationId: conversationId as Id<"conversations">,
+  const assistantMessageId = await convex.mutation(api.system.createMessage, {
+    internalKey,
+    conversationId: conversationId as Id<"conversations">,
+    projectId,
+    role: "assistant",
+    content: "",
+    status: "processing",
+  });
+
+  // try {
+  //   await processConversationMessage({
+  //     messageId: assistantMessageId,
+  //     conversationId,
+  //     message,
+  //   });
+  // } catch (error) {
+  //   console.error("Failed to process conversation message:", error);
+  //   return NextResponse.json(
+  //     { error: "Failed to process message." },
+  //     { status: 500 },
+  //   );
+  // }
+
+  const event = await inngest.send({
+    name: "message/sent",
+    data: {
+      messageId: assistantMessageId,
+      conversationId,
       projectId,
-      role: "assistant",
-      content: "",
-      status: "processing",
-    }
-  );
-
-  try {
-    await processConversationMessage({
-        messageId: assistantMessageId,
-        conversationId,
-        message,
-    });
-  } catch (error) {
-    console.error("Failed to process conversation message:", error);
-    return NextResponse.json(
-      { error: "Failed to process message." },
-      { status: 500 }
-    );
-  }
-
+      message,
+    },
+  });
   return NextResponse.json({
     success: true,
+    eventId: event.ids[0],
     messageId: assistantMessageId,
   });
-};
+}
