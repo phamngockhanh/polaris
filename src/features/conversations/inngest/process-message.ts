@@ -136,6 +136,45 @@ function getFileLookupAnswer(
   return fileNames.join("\n");
 }
 
+function getToolResultSummary(
+  outputs: Array<{
+    type: string;
+    content?: unknown;
+    tool?: { name?: string };
+  }>,
+) {
+  const relevantToolResults = outputs.filter(
+    (output) =>
+      output.type === "tool_result" &&
+      typeof output.content === "string" &&
+      ["createFiles", "createFolder", "updateFile", "renameFile", "deleteFiles"].includes(
+        output.tool?.name ?? "",
+      ),
+  );
+
+  if (relevantToolResults.length === 0) {
+    return "";
+  }
+
+  const messages = relevantToolResults
+    .map((output) => String(output.content).trim())
+    .filter(Boolean);
+
+  if (messages.length === 0) {
+    return "";
+  }
+
+  const failedMessages = messages.filter((message) =>
+    /^error[:\s]/i.test(message),
+  );
+
+  if (failedMessages.length === messages.length) {
+    return failedMessages.join("\n");
+  }
+
+  return messages.join("\n");
+}
+
 function isSimpleFileNameRequest(message: string) {
   const normalizedMessage = message.toLowerCase();
 
@@ -178,9 +217,147 @@ function containsRawToolMarkup(response: string) {
   return (
     normalizedResponse.includes("<tool_call") ||
     normalizedResponse.includes("</tool_call>") ||
+    normalizedResponse.includes("function=execute_command") ||
     normalizedResponse.includes("function=list_files") ||
     normalizedResponse.includes("function=listfiles")
   );
+}
+
+function extractExecuteCommand(response: string) {
+  const match = response.match(
+    /<parameter=command>\s*([\s\S]*?)(?:<\/tool_call>|<parameter=|$)/i,
+  );
+
+  return match?.[1]?.trim() || null;
+}
+
+function normalizePathSegments(rawPath: string) {
+  return rawPath
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => segment !== "." && segment !== "..");
+}
+
+async function ensureFolderPath(params: {
+  internalKey: string;
+  projectId: Id<"projects">;
+  pathSegments: string[];
+}) {
+  const { internalKey, projectId, pathSegments } = params;
+
+  let parentId: Id<"files"> | undefined;
+
+  for (const segment of pathSegments) {
+    const projectFiles = await convex.query(api.system.getProjectFiles, {
+      internalKey,
+      projectId,
+    });
+
+    const existingFolder = projectFiles.find(
+      (file) =>
+        file.type === "folder" &&
+        file.parentId === parentId &&
+        file.name === segment,
+    );
+
+    if (existingFolder) {
+      parentId = existingFolder._id;
+      continue;
+    }
+
+    parentId = await convex.mutation(api.system.createFolder, {
+      internalKey,
+      projectId,
+      name: segment,
+      parentId,
+    });
+  }
+
+  return parentId;
+}
+
+async function executeRawCommand(params: {
+  command: string;
+  internalKey: string;
+  projectId: Id<"projects">;
+}) {
+  const { command, internalKey, projectId } = params;
+  const trimmedCommand = command.trim();
+
+  const mkdirMatch = trimmedCommand.match(/^(mkdir|md)\s+(.+)$/i);
+  if (mkdirMatch) {
+    const rawPath = mkdirMatch[2]?.trim();
+    if (!rawPath) {
+      return null;
+    }
+
+    const pathSegments = normalizePathSegments(rawPath);
+    if (pathSegments.length === 0) {
+      return null;
+    }
+
+    await ensureFolderPath({
+      internalKey,
+      projectId,
+      pathSegments,
+    });
+
+    return `Created folder "${pathSegments.join("/")}".`;
+  }
+
+  const touchMatch = trimmedCommand.match(/^touch\s+(.+)$/i);
+  if (touchMatch) {
+    const rawPath = touchMatch[1]?.trim();
+    if (!rawPath) {
+      return null;
+    }
+
+    const pathSegments = normalizePathSegments(rawPath);
+    const fileName = pathSegments.at(-1);
+
+    if (!fileName) {
+      return null;
+    }
+
+    const folderSegments = pathSegments.slice(0, -1);
+    const parentId =
+      folderSegments.length > 0
+        ? await ensureFolderPath({
+            internalKey,
+            projectId,
+            pathSegments: folderSegments,
+          })
+        : undefined;
+
+    const projectFiles = await convex.query(api.system.getProjectFiles, {
+      internalKey,
+      projectId,
+    });
+
+    const existingFile = projectFiles.find(
+      (file) =>
+        file.type === "file" &&
+        file.parentId === parentId &&
+        file.name === fileName,
+    );
+
+    if (!existingFile) {
+      await convex.mutation(api.system.createFiles, {
+        internalKey,
+        projectId,
+        parentId,
+        files: [{ name: fileName, content: "" }],
+      });
+    }
+
+    return `Created file "${pathSegments.join("/")}".`;
+  }
+
+  return null;
 }
 
 export const processMessage = inngest.createFunction(
@@ -328,6 +505,7 @@ export const processMessage = inngest.createFunction(
 
     let assistantResponse =
       getFileLookupAnswer(message, allOutputs) ||
+      getToolResultSummary(allOutputs) ||
       getLatestAssistantText(allOutputs);
 
     if (!assistantResponse) {
@@ -374,6 +552,24 @@ Do not mention internal agent loops or hidden reasoning.`,
     if (!assistantResponse) {
       assistantResponse =
         "I could not produce a final answer from the tool results. Please try again.";
+    }
+
+    if (containsRawToolMarkup(assistantResponse)) {
+      const command = extractExecuteCommand(assistantResponse);
+
+      if (command) {
+        const executionResult = await step.run("execute-raw-command-fallback", async () => {
+          return await executeRawCommand({
+            command,
+            internalKey,
+            projectId,
+          });
+        });
+
+        if (executionResult) {
+          assistantResponse = executionResult;
+        }
+      }
     }
 
     if (

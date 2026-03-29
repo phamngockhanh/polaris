@@ -124,7 +124,13 @@ export const Navbar = ({ projectId }: { projectId: Id<"projects"> }) => {
         )}
       </div>
       <div className="flex items-center gap-2">
-        <UserButton />
+        <UserButton
+          userProfileProps={{
+            additionalOAuthScopes: {
+              github: ["repo"],
+            },
+          }}
+        />
       </div>
     </div>
   );

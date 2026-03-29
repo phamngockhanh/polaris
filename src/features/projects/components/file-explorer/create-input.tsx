@@ -32,7 +32,7 @@ export const CreateInput = ({
     >
       <div className="flex items-center gap-0.5">
         {type === "folder" && (
-          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronRightIcon className="size-4 shrink-0 text-white" />
         )}
         {type === "file" && (
           <FileIcon fileName={value} autoAssign className="size-4" />
