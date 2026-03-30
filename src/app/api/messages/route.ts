@@ -126,21 +126,51 @@ async function scaffoldReactTodoApp(params: {
             version: "0.0.0",
             type: "module",
             scripts: {
-              dev: "vite --host 0.0.0.0 --port 4173",
-              build: "vite build",
-              preview: "vite preview --host 0.0.0.0 --port 4173",
-            },
-            dependencies: {
-              react: "^19.0.0",
-              "react-dom": "^19.0.0",
-            },
-            devDependencies: {
-              vite: "^7.0.0",
+              dev: "node server.mjs",
+              start: "node server.mjs",
             },
           },
           null,
           2,
         ),
+      },
+      {
+        name: "server.mjs",
+        content: `import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { extname, join, normalize } from "node:path";
+
+const port = Number(process.env.PORT || 4173);
+const root = process.cwd();
+
+const contentTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+};
+
+createServer(async (req, res) => {
+  const requestPath = req.url === "/" ? "/index.html" : req.url || "/index.html";
+  const filePath = normalize(join(root, requestPath));
+
+  try {
+    const file = await readFile(filePath);
+    const extension = extname(filePath);
+    res.writeHead(200, {
+      "Content-Type": contentTypes[extension] || "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(file);
+  } catch {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+  }
+}).listen(port, "0.0.0.0", () => {
+  console.log(\`Preview server running at http://0.0.0.0:\${port}\`);
+});
+`,
       },
       {
         name: "index.html",
@@ -150,10 +180,31 @@ async function scaffoldReactTodoApp(params: {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Todo App</title>
+    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <main class="app-shell">
+      <section class="todo-card">
+        <p class="eyebrow">Zero-install preview</p>
+        <h1>Todo Application</h1>
+        <p class="subtitle">
+          A simple starter app that runs in browser preview and on your local machine without installing packages.
+        </p>
+
+        <form class="todo-form" id="todo-form">
+          <input id="todo-input" placeholder="Add a new task" />
+          <button type="submit">Add task</button>
+        </form>
+
+        <div class="todo-meta">
+          <span id="remaining-count">1 task(s) remaining</span>
+          <span id="total-count">2 total</span>
+        </div>
+
+        <ul class="todo-list" id="todo-list"></ul>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
 `,
@@ -167,96 +218,67 @@ async function scaffoldReactTodoApp(params: {
     parentId: srcFolderId,
     files: [
       {
-        name: "main.jsx",
-        content: `import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./styles.css";
-
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-`,
-      },
-      {
-        name: "App.jsx",
-        content: `import React, { useState } from "react";
-
-const initialTodos = [
+        name: "main.js",
+        content: `const initialTodos = [
   { id: 1, text: "Create the first task", done: true },
   { id: 2, text: "Style the interface", done: false },
 ];
 
-export default function App() {
-  const [todos, setTodos] = useState(initialTodos);
-  const [value, setValue] = useState("");
+const form = document.getElementById("todo-form");
+const input = document.getElementById("todo-input");
+const list = document.getElementById("todo-list");
+const remainingCount = document.getElementById("remaining-count");
+const totalCount = document.getElementById("total-count");
 
-  const addTodo = (event) => {
-    event.preventDefault();
-    const text = value.trim();
-    if (!text) return;
+let todos = [...initialTodos];
 
-    setTodos((current) => [
-      { id: Date.now(), text, done: false },
-      ...current,
-    ]);
-    setValue("");
-  };
+const render = () => {
+  list.innerHTML = "";
 
-  const toggleTodo = (id) => {
-    setTodos((current) =>
-      current.map((todo) =>
-        todo.id === id ? { ...todo, done: !todo.done } : todo,
-      ),
-    );
-  };
+  for (const todo of todos) {
+    const item = document.createElement("li");
+    if (todo.done) {
+      item.classList.add("done");
+    }
+
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = todo.done;
+    checkbox.addEventListener("change", () => {
+      todos = todos.map((entry) =>
+        entry.id === todo.id ? { ...entry, done: !entry.done } : entry
+      );
+      render();
+    });
+
+    const text = document.createElement("span");
+    text.textContent = todo.text;
+
+    label.append(checkbox, text);
+    item.append(label);
+    list.append(item);
+  }
 
   const remaining = todos.filter((todo) => !todo.done).length;
+  remainingCount.textContent = \`\${remaining} task(s) remaining\`;
+  totalCount.textContent = \`\${todos.length} total\`;
+};
 
-  return (
-    <main className="app-shell">
-      <section className="todo-card">
-        <p className="eyebrow">Vite + React</p>
-        <h1>Todo Application</h1>
-        <p className="subtitle">
-          A simple starter app that writes code into the editor and shows the
-          running result in preview.
-        </p>
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const value = input.value.trim();
 
-        <form className="todo-form" onSubmit={addTodo}>
-          <input
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder="Add a new task"
-          />
-          <button type="submit">Add task</button>
-        </form>
+  if (!value) {
+    return;
+  }
 
-        <div className="todo-meta">
-          <span>{remaining} task(s) remaining</span>
-          <span>{todos.length} total</span>
-        </div>
+  todos = [{ id: Date.now(), text: value, done: false }, ...todos];
+  input.value = "";
+  render();
+});
 
-        <ul className="todo-list">
-          {todos.map((todo) => (
-            <li key={todo.id} className={todo.done ? "done" : ""}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={todo.done}
-                  onChange={() => toggleTodo(todo.id)}
-                />
-                <span>{todo.text}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
-  );
-}
+render();
 `,
       },
       {
@@ -393,11 +415,20 @@ h1 {
     ],
   });
 
+  await convex.mutation(api.system.updateProjectSettings, {
+    internalKey,
+    projectId,
+    settings: {
+      installCommand: "node -e 0",
+      devCommand: "node server.mjs",
+    },
+  });
+
   await convex.mutation(api.system.updateMessageContent, {
     internalKey,
     messageId: assistantMessageId,
     content:
-      'Created a runnable Vite + React todo app with "package.json", "index.html", and files in "src". The terminal will install dependencies and start the dev server for preview.',
+      'Created a runnable todo app with "package.json", "server.mjs", "index.html", and files in "src". Preview now runs without installing packages, and local development works with "npm run dev".',
   });
 }
 
