@@ -24,18 +24,18 @@ const formatTimestamp = (timestamp: number) => {
 
 const getProjectIcon = (project: Doc<"projects">) => {
   if (project.importStatus === "completed") {
-    return <FaGithub className="size-3.5 text-sidebar-foreground/60" />;
+    return <FaGithub className="size-3.5 text-white/70" />;
   }
 
   if (project.importStatus === "failed") {
-    return <AlertCircleIcon className="size-3.5 text-sidebar-foreground/60" />;
+    return <AlertCircleIcon className="size-3.5 text-white/70" />;
   }
   if (project.importStatus === "importing") {
     return (
-      <Loader2Icon className="size-3.5 text-sidebar-foreground/60 animate-spin" />
+      <Loader2Icon className="size-3.5 text-white/70 animate-spin" />
     );
   }
-  return <GlobeIcon className="size-3.5 text-sidebar-foreground/60" />;
+  return <GlobeIcon className="size-3.5 text-white/70" />;
 };
 interface ProjectsListProps {
   onViewAll: () => void;
@@ -43,7 +43,7 @@ interface ProjectsListProps {
 const ContinueCard = ({ data }: { data: Doc<"projects"> }) => {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs text-sidebar-foreground/60">Last updated</span>
+      <span className="text-xs text-white/70">Last updated</span>
       <Button
         variant="outline"
         asChild
@@ -54,11 +54,11 @@ const ContinueCard = ({ data }: { data: Doc<"projects"> }) => {
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
               {getProjectIcon(data)}
-              <span className="font-medium truncate">{data.name}</span>
+              <span className="font-medium truncate text-white">{data.name}</span>
             </div>
-            <ArrowRightIcon className="size-4 text-sidebar-foreground/60 group-hover:translate-x-0.5 transition-transform" />
+            <ArrowRightIcon className="size-4 text-white/70 group-hover:translate-x-0.5 transition-transform" />
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-white/60">
             {formatTimestamp(data.updatedAt)}
           </span>
         </Link>
@@ -71,13 +71,13 @@ const ProjectItem = ({ data }: { data: Doc<"projects"> }) => {
   return (
     <Link
       href={`/projects/${data._id}`}
-      className="flex w-full items-center justify-between gap-3 py-1 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground group"
+      className="flex w-full items-center justify-between gap-3 py-1 text-sm font-medium text-white/80 hover:text-white group"
     >
       <div className="flex items-center gap-2">
         {getProjectIcon(data)}
         <span className="truncate">{data.name}</span>
       </div>
-      <span className="shrink-0 text-xs text-sidebar-foreground/50 transition-colors group-hover:text-sidebar-foreground/70">
+      <span className="shrink-0 text-xs text-white/55 transition-colors group-hover:text-white/75">
         {formatTimestamp(data.updatedAt)}
       </span>
     </Link>
@@ -96,15 +96,15 @@ export const ProjectsList = ({ onViewAll }: ProjectsListProps) => {
     <div className="flex w-full flex-col gap-4">
       {mostRecent ? <ContinueCard data={mostRecent} /> : null}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-sidebar-foreground/60">Recent Projects</span>
+        <span className="text-xs text-white/70">Recent Projects</span>
         {rest.length > 0 && (
           <button
             type="button"
             onClick={onViewAll}
-            className="flex items-center gap-2 text-xs text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground"
+            className="flex items-center gap-2 text-xs text-white/70 transition-colors hover:text-white"
           >
             <span>View all</span>
-            <Kbd className="bg-accent border">⌘K</Kbd>
+            <Kbd className="bg-accent border">Ctrl+K</Kbd>
           </button>
         )}
       </div>

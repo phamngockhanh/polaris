@@ -50,16 +50,16 @@ export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
   };
 
   return (
-    <div className="h-full bg-sidebar">
+    <div className="h-full bg-sidebar text-white">
       <ScrollArea>
         <div
           role="button"
           onClick={() => setIsOpen((current) => !current)}
-          className="group/project relative flex h-5.5 w-full cursor-pointer items-center gap-0.5 bg-accent text-left font-bold"
+          className="group/project relative flex h-5.5 w-full cursor-pointer items-center gap-0.5 bg-accent text-left font-bold text-white"
         >
           <ChevronRightIcon
             className={cn(
-              "size-4 shrink-0 text-muted-foreground",
+              "size-4 shrink-0 text-white",
               isOpen && "rotate-90",
             )}
           />
@@ -76,7 +76,7 @@ export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
               }}
               variant="highlight"
               size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
+              className="text-white hover:text-white"
             >
               <FilePlusCornerIcon className="size-3.5" />
             </Button>
@@ -89,7 +89,7 @@ export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
               }}
               variant="highlight"
               size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
+              className="text-white hover:text-white"
             >
               <FolderPlusIcon className="size-3.5" />
             </Button>
@@ -101,7 +101,7 @@ export const FileExplorer = ({ projectId }: { projectId: Id<"projects"> }) => {
               }}
               variant="highlight"
               size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
+              className="text-white hover:text-white"
             >
               <CopyMinusIcon className="size-3.5" />
             </Button>

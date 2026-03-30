@@ -137,20 +137,24 @@ export const ConversationSidebar = ({
         onOpenChange={setPastConversationsOpen}
         onSelect={(conversationId) => setSelectedConversationId(conversationId)}
       />
-      <div className="flex flex-col h-full bg-sidebar">
+      <div className="flex flex-col h-full bg-sidebar text-white">
         <div className="h-8.75 flex items-center justify-between border-b">
-          <div className="text-sm truncate pl-3">
+          <div className="text-sm truncate pl-3 text-white">
             {activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE}
           </div>
           <div className="flex items-center px-1 gap-1">
             <Button
               size="icon-xs"
+              variant="ghost"
+              className="text-white hover:text-white"
               onClick={() => setPastConversationsOpen(true)}
             >
               <HistoryIcon className="size-3.5" />
             </Button>
             <Button
               size="icon-xs"
+              variant="ghost"
+              className="text-white hover:text-white"
               onClick={handleCreateConversation}
             >
               <PlusIcon className="size-3.5" />
@@ -171,7 +175,7 @@ export const ConversationSidebar = ({
                       <span>Thinking...</span>
                     </div>
                   ) : message.status === "cancelled" ? (
-                    <span className="text-muted-foreground italic">
+                    <span className="text-white/70 italic">
                       Request cancelled
                     </span>
                   ) : (
@@ -192,7 +196,7 @@ export const ConversationSidebar = ({
                         }}
                         label="Copy"
                       >
-                        <CopyIcon className="size-3" />
+                        <CopyIcon className="size-3 text-white" />
                       </MessageAction>
                     </MessageActions>
                   )
@@ -219,6 +223,7 @@ export const ConversationSidebar = ({
             <PromptInputFooter>
               <PromptInputTools />
               <PromptInputSubmit
+                className="text-white"
                 disabled={isProcessing ? false : !input}
                 status={isProcessing ? "streaming" : undefined}
               />

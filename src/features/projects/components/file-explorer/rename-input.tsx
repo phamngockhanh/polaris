@@ -35,7 +35,7 @@ export const RenameInput = ({
         {type === "folder" && (
           <ChevronRightIcon
             className={cn(
-              "size-4 shrink-0 text-muted-foreground",
+              "size-4 shrink-0 text-white",
               isOpen && "rotate-90",
             )}
           />
