@@ -31,7 +31,16 @@ export const PreviewView = ({ projectId }: { projectId: Id<"projects"> }) => {
     settings: project?.settings,
   });
 
-  const isLoading = status === "booting" || status === "installing";
+  const isLoading =
+    status === "booting" || status === "installing" || status === "starting";
+  const statusLabel =
+    status === "booting"
+      ? "Starting..."
+      : status === "installing"
+        ? "Installing..."
+        : status === "starting"
+          ? "Starting server..."
+          : null;
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -51,7 +60,7 @@ export const PreviewView = ({ projectId }: { projectId: Id<"projects"> }) => {
           {isLoading && (
             <div className="flex items-center gap-1.5">
               <Loader2Icon className="size-3 animate-spin" />
-              {status === "booting" ? "Starting..." : "Installing..."}
+              {statusLabel}
             </div>
           )}
           {previewUrl && <span className="truncate">{previewUrl}</span>}
@@ -94,7 +103,7 @@ export const PreviewView = ({ projectId }: { projectId: Id<"projects"> }) => {
               <div className="size-full flex items-center justify-center text-muted-foreground">
                 <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
                   <Loader2Icon className="size-6 animate-spin" />
-                  <p className="text-sm font-medium">Installing...</p>
+                  <p className="text-sm font-medium">{statusLabel}</p>
                 </div>
               </div>
             )}

@@ -116,7 +116,7 @@ export const useWebContainer = ({
   settings,
 }: UseWebContainerProps) => {
   const [status, setStatus] = useState<
-    "idle" | "booting" | "installing" | "running" | "error"
+    "idle" | "booting" | "installing" | "starting" | "running" | "error"
   >("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +141,20 @@ export const useWebContainer = ({
 
     const start = async () => {
       try {
+        if (typeof window !== "undefined") {
+          if (!window.crossOriginIsolated) {
+            throw new Error(
+              "Preview requires cross-origin isolation. Reload the page on the deployed app domain and use Chrome or Edge."
+            );
+          }
+
+          if (typeof SharedArrayBuffer === "undefined") {
+            throw new Error(
+              "This browser does not support WebContainer preview. Use the latest Chrome or Edge desktop."
+            );
+          }
+        }
+
         setStatus("booting");
         setError(null);
         setTerminalOutput("");
@@ -219,6 +233,7 @@ export const useWebContainer = ({
           throw new Error("Invalid dev command.");
         }
 
+        setStatus("starting");
         appendOutput(`\n$ ${devCommand}\n`);
         const devProcess = await container.spawn(devBin, devArgs, {
           env: {
