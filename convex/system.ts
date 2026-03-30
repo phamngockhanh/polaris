@@ -630,3 +630,22 @@ export const createProjectWithConversation = mutation({
     return { projectId, conversationId };
   },
 });
+
+export const updateProjectSettings = mutation({
+  args: {
+    internalKey: v.string(),
+    projectId: v.id("projects"),
+    settings: v.object({
+      installCommand: v.optional(v.string()),
+      devCommand: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    await ctx.db.patch(args.projectId, {
+      settings: args.settings,
+      updatedAt: Date.now(),
+    });
+  },
+});
