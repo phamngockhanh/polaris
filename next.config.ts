@@ -19,13 +19,22 @@ const nextConfig: NextConfig = {
   }
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
+const shouldEnableSentryBuildPlugin =
+  Boolean(sentryOrg) && Boolean(sentryProject) && Boolean(sentryAuthToken);
+
+const config = withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: "john-doe-fb",
+  org: sentryOrg,
 
-  project: "polaris",
+  project: sentryProject,
+
+  authToken: sentryAuthToken,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
@@ -56,3 +65,5 @@ export default withSentryConfig(nextConfig, {
     },
   }
 });
+
+export default shouldEnableSentryBuildPlugin ? config : nextConfig;
