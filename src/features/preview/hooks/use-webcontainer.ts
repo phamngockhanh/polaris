@@ -15,6 +15,9 @@ type FileDoc = Doc<"files">;
 let webcontainerInstance: WebContainer | null = null;
 let bootPromise: Promise<WebContainer> | null = null;
 
+const INSTALL_TIMEOUT_MS = 120_000;
+const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
+
 const getWebContainer = async (): Promise<WebContainer> => {
   if (webcontainerInstance) {
     return webcontainerInstance;
@@ -75,6 +78,29 @@ const normalizePreviewUrl = (url: string) => {
   }
 };
 
+const waitWithTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string
+) => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(message));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 interface UseWebContainerProps {
   projectId: Id<"projects">;
   enabled: boolean;
@@ -123,6 +149,11 @@ export const useWebContainer = ({
           setTerminalOutput((prev) => prev + data);
         };
 
+        let resolveServerReady: (() => void) | null = null;
+        const serverReadyPromise = new Promise<void>((resolve) => {
+          resolveServerReady = resolve;
+        });
+
         const container = await getWebContainer();
         containerRef.current = container;
 
@@ -139,12 +170,14 @@ export const useWebContainer = ({
 
           setPreviewUrl(nextUrl);
           setStatus("running");
+          resolveServerReady?.();
         });
         if (typeof unsubscribeServerReady === "function") {
           serverReadyUnsubscribe = unsubscribeServerReady;
         }
 
         setStatus("installing");
+        appendOutput("Booting preview container...\n");
 
         // Parse install command (default: npm install)
         const { installCommand, devCommand } = getRuntimeCommands(settings);
@@ -153,7 +186,7 @@ export const useWebContainer = ({
         if (!installBin) {
           throw new Error("Invalid install command.");
         }
-        appendOutput(`$ ${installCommand}\n`);
+        appendOutput(`\n$ ${installCommand}\n`);
         const installProcess = await container.spawn(installBin, installArgs);
         void installProcess.output
           .pipeTo(
@@ -166,13 +199,19 @@ export const useWebContainer = ({
           .catch(() => {
             // Stream rejects when process exits/aborts; do not crash the app.
           });
-        const installExitCode = await installProcess.exit;
+        const installExitCode = await waitWithTimeout(
+          installProcess.exit,
+          INSTALL_TIMEOUT_MS,
+          `Dependency installation is taking too long. Check the terminal output or update the Preview Settings install command.`
+        );
 
         if (installExitCode !== 0) {
           throw new Error(
             `${installCommand} failed with code ${installExitCode}`
           );
         }
+
+        appendOutput("\nDependencies installed successfully.\n");
 
         // Parse dev command (default: npm run dev with explicit host/port)
         const [devBin, devArgs] = splitCommand(devCommand);
@@ -209,8 +248,19 @@ export const useWebContainer = ({
             // Process can reject on teardown/abort; ignore to avoid runtime overlay.
           });
 
+        await waitWithTimeout(
+          serverReadyPromise,
+          DEV_SERVER_READY_TIMEOUT_MS,
+          `The dev server did not become ready in time. Check the terminal output or update the Preview Settings start command.`
+        );
+
       } catch (error) {
-        setError(error instanceof Error ? error.message : "Unknown error");
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        setTerminalOutput((prev) =>
+          prev.endsWith("\n") ? `${prev}[preview-error] ${message}\n` : `${prev}\n[preview-error] ${message}\n`
+        );
+        setError(message);
         setStatus("error");
       }
     };
