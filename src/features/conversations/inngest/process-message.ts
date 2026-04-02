@@ -28,6 +28,20 @@ interface MessageEvent {
   message: string;
 }
 
+type ExtractedFile = {
+  path: string;
+  content: string;
+};
+
+type ProjectPlan = {
+  files: ExtractedFile[];
+  settings?: {
+    installCommand?: string;
+    devCommand?: string;
+  };
+  summary?: string;
+};
+
 function getTextContent(content: unknown) {
   if (typeof content === "string") {
     return content;
@@ -51,6 +65,25 @@ function getTextContent(content: unknown) {
   }
 
   return "";
+}
+
+function isBuildRequest(message: string) {
+  const normalized = message.toLowerCase();
+  const buildVerbs = ["build", "create", "generate", "implement", "make"];
+  const buildTargets = [
+    "app",
+    "application",
+    "project",
+    "page",
+    "component",
+    "feature",
+    "website",
+  ];
+
+  return (
+    buildVerbs.some((verb) => normalized.includes(verb)) &&
+    buildTargets.some((target) => normalized.includes(target))
+  );
 }
 
 function getLatestAssistantText(
@@ -81,6 +114,22 @@ function parseJson<T>(value: unknown): T | null {
   } catch {
     return null;
   }
+}
+
+function extractJsonObject(value: string) {
+  const trimmed = value.trim();
+  const fencedMatch = trimmed.match(/```json\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+
+  return trimmed.slice(start, end + 1);
 }
 
 function getFileLookupAnswer(
@@ -229,6 +278,183 @@ function extractExecuteCommand(response: string) {
   );
 
   return match?.[1]?.trim() || null;
+}
+
+function sanitizePathLabel(rawLabel: string) {
+  return rawLabel
+    .trim()
+    .replace(/^[-*#>\s]+/, "")
+    .replace(/^`+|`+$/g, "")
+    .replace(/^\*\*|\*\*$/g, "")
+    .replace(/^"+|"+$/g, "")
+    .replace(/^'+|'+$/g, "")
+    .replace(/^file:\s*/i, "")
+    .trim();
+}
+
+function looksLikeFilePath(value: string) {
+  const normalized = sanitizePathLabel(value);
+  if (!normalized || normalized.length > 200) return false;
+  if (normalized.includes(" ")) return false;
+  if (!normalized.includes(".")) return false;
+  if (/^(bash|sh|shell|json|js|ts|tsx|jsx|css|html|md)$/i.test(normalized)) {
+    return false;
+  }
+
+  return /^(?:[\w@.-]+\/)*[\w@.-]+\.[\w.-]+$/.test(normalized);
+}
+
+function parseProjectPlan(value: string) {
+  const jsonPayload = extractJsonObject(value);
+  if (!jsonPayload) return null;
+
+  const parsed = parseJson<ProjectPlan>(jsonPayload);
+  if (!parsed?.files?.length) return null;
+
+  const files = parsed.files.filter(
+    (file): file is ExtractedFile =>
+      typeof file?.path === "string" &&
+      typeof file?.content === "string" &&
+      looksLikeFilePath(file.path),
+  );
+
+  if (files.length === 0) return null;
+
+  return {
+    files,
+    settings: parsed.settings,
+    summary: parsed.summary,
+  };
+}
+
+function extractFilesFromMarkdown(response: string) {
+  const files: ExtractedFile[] = [];
+  const matches = [...response.matchAll(/```[\w-]*\n([\s\S]*?)```/g)];
+
+  for (const match of matches) {
+    const blockContent = match[1]?.replace(/\r\n/g, "\n") ?? "";
+    if (!blockContent.trim()) continue;
+
+    const blockStart = match.index ?? 0;
+    const prefix = response.slice(0, blockStart);
+    const previousLines = prefix.split(/\r?\n/).slice(-4).reverse();
+    const pathLine = previousLines.find((line) => looksLikeFilePath(line));
+
+    if (!pathLine) continue;
+
+    const path = sanitizePathLabel(pathLine);
+    if (!looksLikeFilePath(path)) continue;
+
+    files.push({
+      path,
+      content: blockContent,
+    });
+  }
+
+  const deduped = new Map<string, string>();
+  for (const file of files) {
+    deduped.set(file.path, file.content);
+  }
+
+  return [...deduped.entries()].map(([path, content]) => ({ path, content }));
+}
+
+async function applyExtractedFiles(params: {
+  internalKey: string;
+  projectId: Id<"projects">;
+  files: ExtractedFile[];
+}) {
+  const { internalKey, projectId, files } = params;
+  if (files.length === 0) return [];
+
+  const projectFiles = await convex.query(api.system.getProjectFiles, {
+    internalKey,
+    projectId,
+  });
+
+  const folderCache = new Map<string, Id<"files"> | undefined>();
+  const createdOrUpdated: string[] = [];
+
+  const getOrCreateParentId = async (folderPath: string) => {
+    if (!folderPath) return undefined;
+    if (folderCache.has(folderPath)) {
+      return folderCache.get(folderPath);
+    }
+
+    const parentId = await ensureFolderPath({
+      internalKey,
+      projectId,
+      pathSegments: normalizePathSegments(folderPath),
+    });
+    folderCache.set(folderPath, parentId);
+    return parentId;
+  };
+
+  for (const file of files) {
+    const pathSegments = normalizePathSegments(file.path);
+    const fileName = pathSegments.at(-1);
+    if (!fileName) continue;
+
+    const folderPath = pathSegments.slice(0, -1).join("/");
+    const parentId = await getOrCreateParentId(folderPath);
+
+    const existingFile = projectFiles.find(
+      (projectFile) =>
+        projectFile.type === "file" &&
+        projectFile.parentId === parentId &&
+        projectFile.name === fileName,
+    );
+
+    if (existingFile) {
+      await convex.mutation(api.system.updateFile, {
+        internalKey,
+        fileId: existingFile._id,
+        content: file.content,
+      });
+      createdOrUpdated.push(file.path);
+      continue;
+    }
+
+    await convex.mutation(api.system.createFiles, {
+      internalKey,
+      projectId,
+      parentId,
+      files: [{ name: fileName, content: file.content }],
+    });
+    createdOrUpdated.push(file.path);
+  }
+
+  return createdOrUpdated;
+}
+
+async function applyProjectPlan(params: {
+  internalKey: string;
+  projectId: Id<"projects">;
+  plan: ProjectPlan;
+}) {
+  const { internalKey, projectId, plan } = params;
+
+  const writtenPaths = await applyExtractedFiles({
+    internalKey,
+    projectId,
+    files: plan.files,
+  });
+
+  if (
+    plan.settings &&
+    (plan.settings.installCommand || plan.settings.devCommand)
+  ) {
+    await convex.mutation(api.system.updateProjectSettings, {
+      internalKey,
+      projectId,
+      settings: {
+        installCommand: plan.settings.installCommand,
+        devCommand: plan.settings.devCommand,
+      },
+    });
+  }
+
+  return writtenPaths;
 }
 
 function normalizePathSegments(rawPath: string) {
@@ -552,6 +778,84 @@ Do not mention internal agent loops or hidden reasoning.`,
     if (!assistantResponse) {
       assistantResponse =
         "I could not produce a final answer from the tool results. Please try again.";
+    }
+
+    const hasWriteToolResults = allOutputs.some(
+      (output) =>
+        output.type === "tool_result" &&
+        ["createFiles", "updateFile", "createFolder"].includes(
+          output.tool?.name ?? "",
+        ),
+    );
+
+    const extractedFiles = extractFilesFromMarkdown(assistantResponse);
+    if (extractedFiles.length > 0 && !hasWriteToolResults) {
+      const writtenPaths = await step.run("apply-extracted-files", async () => {
+        return await applyExtractedFiles({
+          internalKey,
+          projectId,
+          files: extractedFiles,
+        });
+      });
+
+      if (writtenPaths.length > 0) {
+        assistantResponse = `Created project files from the generated code example: ${writtenPaths.join(", ")}. Preview can now run using those files.`;
+      }
+    }
+
+    if (
+      isBuildRequest(message) &&
+      !hasWriteToolResults &&
+      extractedFiles.length === 0
+    ) {
+      const plannerAgent = createAgent({
+        name: "polaris-project-planner",
+        system: `You are Polaris.
+
+Return only valid JSON with this shape:
+{
+  "files": [
+    { "path": "package.json", "content": "..." }
+  ],
+  "settings": {
+    "installCommand": "optional",
+    "devCommand": "optional"
+  },
+  "summary": "short summary"
+}
+
+Rules:
+- Respond with JSON only. No markdown fences.
+- Produce real project files for the user's request.
+- Prefer a browser-previewable app.
+- If the user specifies React + Vite, generate a minimal runnable Vite project with the required files.
+- Include only text files.
+- Every file must include its full path.`,
+        model: getAgentTextModel(DEFAULT_MODEL, {
+          temperature: 0,
+          max_completion_tokens: 8000,
+        }),
+      });
+
+      const { output } = await plannerAgent.run(message, { step });
+      const plannerResponse = getLatestAssistantText(output);
+      const plan = parseProjectPlan(plannerResponse);
+
+      if (plan) {
+        const writtenPaths = await step.run("apply-project-plan", async () => {
+          return await applyProjectPlan({
+            internalKey,
+            projectId,
+            plan,
+          });
+        });
+
+        if (writtenPaths.length > 0) {
+          assistantResponse =
+            plan.summary?.trim() ||
+            `Created project files from a structured project plan: ${writtenPaths.join(", ")}. Preview can now run using those files.`;
+        }
+      }
     }
 
     if (containsRawToolMarkup(assistantResponse)) {
